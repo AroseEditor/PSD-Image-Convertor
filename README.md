@@ -4,7 +4,7 @@
 
 **Describe a scene in plain English. Get back a real, layered, Photoshop-editable `.psd` file.**
 
-[![Release](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/release.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/release.yml)
+[![Release](https://github.com/AroseEditor/PSD-Image-Convertor/actions/workflows/release.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/release.yml)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![Electron](https://img.shields.io/badge/Electron-47848F?logo=electron&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -12,7 +12,6 @@
 
 </div>
 
-> Replace `YOUR_USERNAME/YOUR_REPO` in the badge above with this repo's actual path once it's pushed to GitHub — it'll go green as soon as the [Release workflow](.github/workflows/release.yml) runs.
 
 ---
 
