@@ -1,0 +1,89 @@
+{
+  "catalogVersion": 2,
+  "defaultModelId": "gemini-2.5-flash-image",
+  "providers": {
+    "gemini": {
+      "label": "Gemini",
+      "models": [
+        {
+          "id": "gemini-2.5-flash-image",
+          "label": "Gemini 2.5 Flash Image (Nano Banana)",
+          "supportsNativeTransparency": false,
+          "isDefault": true
+        },
+        {
+          "id": "gemini-2.0-flash-preview-image-generation",
+          "label": "Gemini 2.0 Flash (Image Preview)",
+          "supportsNativeTransparency": false
+        }
+      ]
+    },
+    "openai": {
+      "label": "ChatGPT / OpenAI",
+      "models": [
+        {
+          "id": "gpt-image-2",
+          "label": "GPT Image 2",
+          "supportsNativeTransparency": false
+        },
+        {
+          "id": "gpt-image-1",
+          "label": "GPT Image 1",
+          "supportsNativeTransparency": true
+        },
+        {
+          "id": "gpt-image-1-mini",
+          "label": "GPT Image 1 Mini",
+          "supportsNativeTransparency": true
+        },
+        {
+          "id": "gpt-5.5",
+          "label": "GPT-5.5",
+          "supportsNativeTransparency": false
+        },
+        {
+          "id": "gpt-5.5-2026-04-23",
+          "label": "GPT-5.5 (2026-04-23 snapshot)",
+          "supportsNativeTransparency": false
+        },
+        {
+          "id": "gpt-5.4",
+          "label": "GPT-5.4",
+          "supportsNativeTransparency": false
+        },
+        {
+          "id": "gpt-5.4-pro",
+          "label": "GPT-5.4 Pro",
+          "supportsNativeTransparency": false
+        },
+        {
+          "id": "gpt-5.4-mini",
+          "label": "GPT-5.4 Mini",
+          "supportsNativeTransparency": false
+        },
+        {
+          "id": "gpt-5.4-nano",
+          "label": "GPT-5.4 Nano",
+          "supportsNativeTransparency": false
+        }
+      ]
+    },
+    "anthropic": {
+      "label": "Claude (Prompt Enhancer)",
+      "models": [
+        {
+          "id": "claude-opus-4-8",
+          "label": "Claude Opus 4.8 (Prompt Enhancer)"
+        },
+        {
+          "id": "claude-sonnet-5",
+          "label": "Claude Sonnet 5 (Prompt Enhancer)"
+        },
+        {
+          "id": "claude-haiku-4-5",
+          "label": "Claude Haiku 4.5 (Prompt Enhancer)"
+        }
+      ]
+    }
+  }
+}
