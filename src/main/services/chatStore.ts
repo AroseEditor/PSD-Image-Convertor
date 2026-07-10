@@ -38,14 +38,20 @@ export async function getChat(chatId: string): Promise<Chat | null> {
   return chats.find((c) => c.id === chatId) ?? null
 }
 
-export async function createChat(title: string, firstUserMessageText: string): Promise<Chat> {
+export async function createChat(
+  title: string,
+  firstUserMessageText: string,
+  attachedImagePngBase64?: string
+): Promise<Chat> {
   const now = new Date().toISOString()
   const chat: Chat = {
     id: randomUUID(),
     title,
     createdAt: now,
     updatedAt: now,
-    messages: [{ id: randomUUID(), role: 'user', text: firstUserMessageText, createdAt: now }]
+    messages: [
+      { id: randomUUID(), role: 'user', text: firstUserMessageText, createdAt: now, attachedImagePngBase64 }
+    ]
   }
   const chats = await readAll()
   chats.push(chat)
@@ -54,11 +60,21 @@ export async function createChat(title: string, firstUserMessageText: string): P
   return chat
 }
 
-export async function appendUserMessage(chatId: string, text: string): Promise<void> {
+export async function appendUserMessage(
+  chatId: string,
+  text: string,
+  attachedImagePngBase64?: string
+): Promise<void> {
   const chats = await readAll()
   const chat = chats.find((c) => c.id === chatId)
   if (!chat) return
-  chat.messages.push({ id: randomUUID(), role: 'user', text, createdAt: new Date().toISOString() })
+  chat.messages.push({
+    id: randomUUID(),
+    role: 'user',
+    text,
+    createdAt: new Date().toISOString(),
+    attachedImagePngBase64
+  })
   chat.updatedAt = new Date().toISOString()
   await writeAll(chats)
 }

@@ -1,4 +1,4 @@
-import type { LayerPlan, LayerPlanLayer } from '@shared/types'
+import type { AttachedImage, LayerPlan, LayerPlanLayer } from '@shared/types'
 
 export const LAYER_PLAN_TOOL_NAME = 'submit_layer_plan'
 
@@ -113,6 +113,24 @@ are editing an existing image, not starting fresh. In that case:
    - On the very first turn (no previous plan), set changed: true on every
      layer.
 
+UPLOADED IMAGE MODE: if an image is attached, it is a real photo/picture the
+user provided — look at it and describe what is ACTUALLY in it, don't invent
+a different scene. Decompose what you see into the same kind of layer list
+(background + one layer per distinct real object you can identify), sized and
+positioned to match where those objects actually appear in the attached
+image's own dimensions (canvasWidth x canvasHeight below refers to that
+image's real pixel size). Fold the user's requested edit into the prompt of
+whichever specific layer(s) it applies to (e.g. "make the pen red" only
+changes the pen layer's prompt to describe it as red, set that layer's
+changed: true; every other layer's prompt should describe what's already
+there in the photo, unchanged, and can be set changed: false if this is also
+an edit turn with a previous plan, or changed: true if this is the first time
+this photo is being decomposed). Recreating another person's real photo from
+a text description is inherently approximate — describe it as precisely as
+you can rather than guessing generically. If both a previous plan AND a newly
+attached image are present, prefer the attached image as the current visual
+ground truth.
+
 Call the submit_layer_plan tool exactly once with your result. Do not include
 any other commentary.`
 
@@ -120,12 +138,19 @@ export interface PlannerContext {
   canvasWidth: number
   canvasHeight: number
   previousPlan?: LayerPlan
+  /** A user-uploaded/pasted/dragged photo — vision-capable adapters attach the actual
+   *  image bytes as a separate content block; this text just tells the model it's there. */
+  attachedImage?: AttachedImage
 }
 
 export function buildPlannerUserMessage(rawPrompt: string, ctx: PlannerContext): string {
   const canvasLine = `Canvas size: ${ctx.canvasWidth}x${ctx.canvasHeight}.`
+  const attachmentLine = ctx.attachedImage
+    ? '\n\nAn image is attached above/alongside this message — see UPLOADED IMAGE MODE in your instructions.'
+    : ''
+
   if (!ctx.previousPlan) {
-    return `${canvasLine}\n\nUser request (new image): ${rawPrompt}`
+    return `${canvasLine}\n\nUser request (new image): ${rawPrompt}${attachmentLine}`
   }
   return [
     canvasLine,
@@ -133,15 +158,20 @@ export function buildPlannerUserMessage(rawPrompt: string, ctx: PlannerContext):
     'PREVIOUS PLAN (JSON):',
     JSON.stringify(ctx.previousPlan),
     '',
-    `New instruction from the user (an edit to the existing image): ${rawPrompt}`
+    `New instruction from the user (an edit to the existing image): ${rawPrompt}${attachmentLine}`
   ].join('\n')
 }
 
 export function buildLayerImagePrompt(
   layer: LayerPlanLayer,
   enhancedPrompt: string,
-  transparentBackground: boolean
+  transparentBackground: boolean,
+  hasReferenceImage = false
 ): string {
+  const referenceLine = hasReferenceImage
+    ? `\n- A reference photo is attached — this subject should match how it actually looks in that photo (pose, colors, materials), isolated from everything else in it, with the requested edit applied if this element is the one being edited.`
+    : ''
+
   return `${layer.prompt}
 
 Style and lighting reference (for consistency across all elements in this composite image, do not depict any other elements from this description — draw ONLY the single subject above): ${enhancedPrompt}
@@ -155,7 +185,7 @@ Requirements:
   }
 - No text, logos, or watermarks anywhere in the image unless the subject IS handwritten/printed text (this subject is not).
 - Consistent art style, color palette, and lighting direction with the style reference above.
-- Centered composition, subject fully contained within the frame with a small margin, matching an approximate ${layer.bbox.w}x${layer.bbox.h} aspect ratio.`
+- Centered composition, subject fully contained within the frame with a small margin, matching an approximate ${layer.bbox.w}x${layer.bbox.h} aspect ratio.${referenceLine}`
 }
 
 export const CHAT_TITLE_SYSTEM_PROMPT =

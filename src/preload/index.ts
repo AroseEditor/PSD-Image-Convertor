@@ -31,7 +31,11 @@ const api = {
   },
   system: {
     showInFolder: (filePath: string): Promise<{ ok: true }> =>
-      ipcRenderer.invoke(IPC.SYSTEM_SHOW_IN_FOLDER, filePath)
+      ipcRenderer.invoke(IPC.SYSTEM_SHOW_IN_FOLDER, filePath),
+    saveImageAs: (base64: string, suggestedName: string): Promise<{ ok: true; canceled: boolean; path?: string }> =>
+      ipcRenderer.invoke(IPC.SYSTEM_SAVE_IMAGE_AS, base64, suggestedName),
+    saveFileAs: (sourcePath: string, suggestedName: string): Promise<{ ok: true; canceled: boolean; path?: string }> =>
+      ipcRenderer.invoke(IPC.SYSTEM_SAVE_FILE_AS, sourcePath, suggestedName)
   },
   generation: {
     submit: (req: GenerationRequest): Promise<{ jobId: string; chatId: string }> =>

@@ -1,5 +1,5 @@
-import OpenAI from 'openai'
-import type { LayerPlan, ProviderId } from '@shared/types'
+import OpenAI, { toFile } from 'openai'
+import type { AttachedImage, LayerPlan, ProviderId } from '@shared/types'
 import { layerPlanSchema } from '@shared/layerPlanSchema'
 import { normalizeOpenAiError } from './normalizeError'
 import { isMockMode, mockLayerColor, mockLayerPlan, mockPngBuffer, mockTitle } from './mock'
@@ -32,12 +32,31 @@ export async function generateImage(
   prompt: string,
   modelId: string,
   apiKey: string,
-  transparentBackground: boolean
+  transparentBackground: boolean,
+  referenceImage?: AttachedImage
 ): Promise<ImageResult> {
   if (isMockMode()) return { pngBuffer: await mockPngBuffer(512, 512, mockLayerColor(prompt)) }
   const client = new OpenAI({ apiKey })
   try {
     if (isImagesApiModel(modelId)) {
+      if (referenceImage) {
+        // Edit mode: use the dedicated image-edit endpoint with the reference photo as input.
+        const inputFile = await toFile(
+          Buffer.from(referenceImage.base64, 'base64'),
+          `reference.${extensionFor(referenceImage.mimeType)}`,
+          { type: referenceImage.mimeType }
+        )
+        const response = await client.images.edit({
+          model: modelId,
+          image: inputFile,
+          prompt,
+          ...(transparentBackground ? { background: 'transparent' as const } : {})
+        })
+        const b64 = response.data?.[0]?.b64_json
+        if (!b64) throw new Error('openai_no_image_returned')
+        return { pngBuffer: Buffer.from(b64, 'base64') }
+      }
+
       const response = await client.images.generate({
         model: modelId,
         prompt,
@@ -52,7 +71,21 @@ export async function generateImage(
     // Chat/reasoning models (gpt-5.x): generate via the Responses API image_generation tool.
     const response = await client.responses.create({
       model: modelId,
-      input: prompt,
+      input: referenceImage
+        ? [
+            {
+              role: 'user',
+              content: [
+                { type: 'input_text', text: prompt },
+                {
+                  type: 'input_image',
+                  image_url: `data:${referenceImage.mimeType};base64,${referenceImage.base64}`,
+                  detail: 'auto'
+                }
+              ]
+            }
+          ]
+        : prompt,
       tools: [{ type: 'image_generation' }]
     })
 
@@ -69,6 +102,12 @@ export async function generateImage(
   }
 }
 
+function extensionFor(mimeType: string): string {
+  if (mimeType === 'image/jpeg') return 'jpg'
+  if (mimeType === 'image/webp') return 'webp'
+  return 'png'
+}
+
 export async function planLayers(
   rawPrompt: string,
   apiKey: string,
@@ -77,11 +116,23 @@ export async function planLayers(
   if (isMockMode()) return mockLayerPlan(rawPrompt, ctx)
   const client = new OpenAI({ apiKey })
   try {
+    const plannerText = buildPlannerUserMessage(rawPrompt, ctx)
     const completion = await client.chat.completions.create({
       model: PLANNER_MODEL_ID,
       messages: [
         { role: 'system', content: LAYER_PLANNER_SYSTEM_PROMPT },
-        { role: 'user', content: buildPlannerUserMessage(rawPrompt, ctx) }
+        ctx.attachedImage
+          ? {
+              role: 'user',
+              content: [
+                { type: 'text', text: plannerText },
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:${ctx.attachedImage.mimeType};base64,${ctx.attachedImage.base64}` }
+                }
+              ]
+            }
+          : { role: 'user', content: plannerText }
       ],
       response_format: {
         type: 'json_schema',

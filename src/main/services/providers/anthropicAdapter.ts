@@ -35,7 +35,24 @@ export async function planLayers(
         }
       ],
       tool_choice: { type: 'tool', name: LAYER_PLAN_TOOL_NAME },
-      messages: [{ role: 'user', content: buildPlannerUserMessage(rawPrompt, ctx) }]
+      messages: [
+        {
+          role: 'user',
+          content: ctx.attachedImage
+            ? [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: ctx.attachedImage.mimeType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+                    data: ctx.attachedImage.base64
+                  }
+                },
+                { type: 'text', text: buildPlannerUserMessage(rawPrompt, ctx) }
+              ]
+            : buildPlannerUserMessage(rawPrompt, ctx)
+        }
+      ]
     })
 
     const toolUse = message.content.find((block) => block.type === 'tool_use')

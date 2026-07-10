@@ -20,12 +20,20 @@ export interface ModelCatalog {
 
 export type KeyStatus = Record<ProviderId, boolean>
 
+export interface AttachedImage {
+  /** Raw base64 payload, no "data:image/png;base64," prefix. */
+  base64: string
+  mimeType: string
+}
+
 export interface GenerationRequest {
   prompt: string
   modelId: string
   providerId: ProviderId
   /** Omit to start a brand-new chat; pass an existing id to continue it (edit-in-context). */
   chatId?: string
+  /** A user-supplied photo to edit/reference, pasted/uploaded/dragged in. */
+  attachedImage?: AttachedImage
 }
 
 export type GenerationStage =
@@ -125,6 +133,8 @@ export interface ChatMessage {
   role: ChatMessageRole
   text: string
   createdAt: string
+  /** Present on user messages that included an upload/paste/drag attachment. */
+  attachedImagePngBase64?: string
   /** Present on assistant messages once generation succeeds. */
   previewPngBase64?: string
   psdPath?: string

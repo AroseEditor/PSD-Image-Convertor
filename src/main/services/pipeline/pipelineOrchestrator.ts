@@ -1,8 +1,10 @@
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { BrowserWindow } from 'electron'
+import sharp from 'sharp'
 import { IPC } from '@shared/ipcChannels'
 import type {
+  AttachedImage,
   GenerationRequest,
   GenerationProgressEvent,
   GenerationPreviewEvent,
@@ -50,10 +52,33 @@ function resolveTargetImageModel(
   return { providerId: (fallbackProvider as 'gemini' | 'openai') ?? 'gemini', modelId: fallback }
 }
 
+interface NormalizedAttachment {
+  image: AttachedImage
+  pngBase64: string
+  width: number
+  height: number
+}
+
+/** Re-encodes whatever the user uploaded/pasted/dragged as PNG, for consistent
+ *  downstream handling (provider calls, chat display) and to read real dimensions. */
+async function normalizeAttachedImage(raw: AttachedImage): Promise<NormalizedAttachment> {
+  const inputBuffer = Buffer.from(raw.base64, 'base64')
+  const pngBuffer = await sharp(inputBuffer).png().toBuffer()
+  const metadata = await sharp(pngBuffer).metadata()
+  const pngBase64 = pngBuffer.toString('base64')
+  return {
+    image: { base64: pngBase64, mimeType: 'image/png' },
+    pngBase64,
+    width: metadata.width ?? 1024,
+    height: metadata.height ?? 1024
+  }
+}
+
 /** Kicks off a new chat (with an AI-generated title) for a first message in a thread. */
 export async function startNewChat(req: GenerationRequest): Promise<{ chatId: string }> {
   const title = await generateChatTitle(req.prompt, req.providerId)
-  const chat = await chatStore.createChat(title, req.prompt)
+  const attachment = req.attachedImage ? await normalizeAttachedImage(req.attachedImage) : undefined
+  const chat = await chatStore.createChat(title, req.prompt, attachment?.pngBase64)
   return { chatId: chat.id }
 }
 
@@ -73,10 +98,12 @@ export async function runGenerationJob(jobId: string, chatId: string, req: Gener
     const previousPlan = existingChat?.lastLayerPlan
     const isEditTurn = !!previousPlan
 
+    const attachment = req.attachedImage ? await normalizeAttachedImage(req.attachedImage) : undefined
+
     if (isEditTurn) {
       // The first user message is written by chatStore.createChat(); edit turns append here.
       const alreadyLogged = existingChat!.messages.some((m) => m.role === 'user' && m.text === req.prompt)
-      if (!alreadyLogged) await chatStore.appendUserMessage(chatId, req.prompt)
+      if (!alreadyLogged) await chatStore.appendUserMessage(chatId, req.prompt, attachment?.pngBase64)
     }
 
     const plannerApiKey = await getKey(req.providerId)
@@ -89,9 +116,10 @@ export async function runGenerationJob(jobId: string, chatId: string, req: Gener
     )
 
     const plan: LayerPlan = await planLayers(req.providerId, req.modelId, plannerApiKey, req.prompt, {
-      canvasWidth: previousPlan?.canvasWidth ?? 1024,
-      canvasHeight: previousPlan?.canvasHeight ?? 1024,
-      previousPlan
+      canvasWidth: attachment?.width ?? previousPlan?.canvasWidth ?? 1024,
+      canvasHeight: attachment?.height ?? previousPlan?.canvasHeight ?? 1024,
+      previousPlan,
+      attachedImage: attachment?.image
     })
 
     const target =
@@ -120,8 +148,13 @@ export async function runGenerationJob(jobId: string, chatId: string, req: Gener
     const layersToGenerateCount = plan.layers.filter((l) => l.changed !== false).length
     progress('generating-layer', `Generating ${layersToGenerateCount} layer image(s)…`, 40)
 
-    const generated = await generateChangedLayers(plan, target.providerId, target.modelId, imageApiKey, (name) =>
-      progress('generated-layer', `Generated "${name}"`, 55, name)
+    const generated = await generateChangedLayers(
+      plan,
+      target.providerId,
+      target.modelId,
+      imageApiKey,
+      (name) => progress('generated-layer', `Generated "${name}"`, 55, name),
+      attachment?.image
     )
 
     const assetDir = chatStore.chatAssetDir(chatId)

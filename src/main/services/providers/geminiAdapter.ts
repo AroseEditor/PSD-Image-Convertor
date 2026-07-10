@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import type { LayerPlan, ProviderId } from '@shared/types'
+import type { AttachedImage, LayerPlan, ProviderId } from '@shared/types'
 import { layerPlanSchema } from '@shared/layerPlanSchema'
 import { normalizeGeminiError } from './normalizeError'
 import { isMockMode, mockLayerColor, mockLayerPlan, mockPngBuffer, mockTitle } from './mock'
@@ -23,14 +23,17 @@ const TITLE_MODEL_ID = 'gemini-2.5-flash'
 export async function generateImage(
   prompt: string,
   modelId: string,
-  apiKey: string
+  apiKey: string,
+  referenceImage?: AttachedImage
 ): Promise<ImageResult> {
   if (isMockMode()) return { pngBuffer: await mockPngBuffer(512, 512, mockLayerColor(prompt)) }
   try {
     const ai = new GoogleGenAI({ apiKey })
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: prompt
+      contents: referenceImage
+        ? [{ inlineData: { mimeType: referenceImage.mimeType, data: referenceImage.base64 } }, { text: prompt }]
+        : prompt
     })
 
     const parts = response.candidates?.[0]?.content?.parts ?? []
@@ -58,9 +61,15 @@ export async function planLayers(
   if (isMockMode()) return mockLayerPlan(rawPrompt, ctx)
   try {
     const ai = new GoogleGenAI({ apiKey })
+    const plannerText = buildPlannerUserMessage(rawPrompt, ctx)
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: buildPlannerUserMessage(rawPrompt, ctx),
+      contents: ctx.attachedImage
+        ? [
+            { inlineData: { mimeType: ctx.attachedImage.mimeType, data: ctx.attachedImage.base64 } },
+            { text: plannerText }
+          ]
+        : plannerText,
       config: {
         systemInstruction: LAYER_PLANNER_SYSTEM_PROMPT,
         responseMimeType: 'application/json',

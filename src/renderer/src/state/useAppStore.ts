@@ -11,12 +11,19 @@ import type {
 
 export type GenerationPhase = 'idle' | 'running' | 'done' | 'error'
 
+export interface PendingAttachment {
+  dataUrl: string
+  base64: string
+  mimeType: string
+}
+
 interface AppState {
   catalog: ModelCatalog | null
   keyStatus: KeyStatus | null
   selectedModelId: string | null
   prompt: string
   settingsOpen: boolean
+  attachedImage: PendingAttachment | null
 
   chats: ChatSummary[]
   activeChatId: string | null
@@ -34,13 +41,14 @@ interface AppState {
   setPrompt: (prompt: string) => void
   openSettings: () => void
   closeSettings: () => void
+  setAttachedImage: (attachment: PendingAttachment | null) => void
 
   setChats: (chats: ChatSummary[]) => void
   selectChat: (chatId: string, messages: ChatMessage[]) => void
   newChat: () => void
   setActiveChatId: (chatId: string) => void
   setActiveMessages: (messages: ChatMessage[]) => void
-  appendOptimisticUserMessage: (text: string) => void
+  appendOptimisticUserMessage: (text: string, attachedImagePngBase64?: string) => void
 
   startGeneration: () => void
   addProgress: (event: GenerationProgressEvent) => void
@@ -55,6 +63,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedModelId: null,
   prompt: '',
   settingsOpen: false,
+  attachedImage: null,
 
   chats: [],
   activeChatId: null,
@@ -73,6 +82,7 @@ export const useAppStore = create<AppState>((set) => ({
   setPrompt: (prompt) => set({ prompt }),
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
+  setAttachedImage: (attachedImage) => set({ attachedImage }),
 
   setChats: (chats) => set({ chats }),
   selectChat: (activeChatId, activeMessages) =>
@@ -83,7 +93,8 @@ export const useAppStore = create<AppState>((set) => ({
       progressLog: [],
       livePreviewDataUrl: null,
       error: null,
-      prompt: ''
+      prompt: '',
+      attachedImage: null
     }),
   newChat: () =>
     set({
@@ -93,15 +104,22 @@ export const useAppStore = create<AppState>((set) => ({
       progressLog: [],
       livePreviewDataUrl: null,
       error: null,
-      prompt: ''
+      prompt: '',
+      attachedImage: null
     }),
   setActiveChatId: (activeChatId) => set({ activeChatId }),
   setActiveMessages: (activeMessages) => set({ activeMessages }),
-  appendOptimisticUserMessage: (text) =>
+  appendOptimisticUserMessage: (text, attachedImagePngBase64) =>
     set((s) => ({
       activeMessages: [
         ...s.activeMessages,
-        { id: `optimistic-${Date.now()}`, role: 'user', text, createdAt: new Date().toISOString() }
+        {
+          id: `optimistic-${Date.now()}`,
+          role: 'user',
+          text,
+          createdAt: new Date().toISOString(),
+          attachedImagePngBase64
+        }
       ]
     })),
 

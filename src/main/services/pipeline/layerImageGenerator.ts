@@ -1,4 +1,4 @@
-import type { LayerBBox, LayerPlan } from '@shared/types'
+import type { AttachedImage, LayerBBox, LayerPlan } from '@shared/types'
 import * as geminiAdapter from '../providers/geminiAdapter'
 import * as openaiAdapter from '../providers/openaiAdapter'
 import { supportsNativeTransparency } from '../modelCatalog/modelCatalog'
@@ -21,18 +21,19 @@ export async function generateChangedLayers(
   targetProviderId: 'gemini' | 'openai',
   targetModelId: string,
   apiKey: string,
-  onLayerDone?: (name: string) => void
+  onLayerDone?: (name: string) => void,
+  referenceImage?: AttachedImage
 ): Promise<GeneratedLayer[]> {
   const transparentBackground = supportsNativeTransparency(targetModelId)
   const layersToGenerate = plan.layers.filter((l) => l.changed !== false)
 
   return mapWithConcurrency(layersToGenerate, CONCURRENCY, async (layer) => {
-    const prompt = buildLayerImagePrompt(layer, plan.enhancedPrompt, transparentBackground)
+    const prompt = buildLayerImagePrompt(layer, plan.enhancedPrompt, transparentBackground, !!referenceImage)
 
     const { pngBuffer } =
       targetProviderId === 'gemini'
-        ? await geminiAdapter.generateImage(prompt, targetModelId, apiKey)
-        : await openaiAdapter.generateImage(prompt, targetModelId, apiKey, transparentBackground)
+        ? await geminiAdapter.generateImage(prompt, targetModelId, apiKey, referenceImage)
+        : await openaiAdapter.generateImage(prompt, targetModelId, apiKey, transparentBackground, referenceImage)
 
     const finalBuffer = transparentBackground ? pngBuffer : await chromaKeyGreenToAlpha(pngBuffer)
 
