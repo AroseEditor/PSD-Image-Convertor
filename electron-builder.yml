@@ -1,6 +1,5 @@
 appId: com.psdimagegenerator.app
 productName: PSD Image Generator
-publish: never
 directories:
   output: dist
   buildResources: build
