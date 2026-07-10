@@ -115,12 +115,24 @@ export async function runGenerationJob(jobId: string, chatId: string, req: Gener
       15
     )
 
-    const plan: LayerPlan = await planLayers(req.providerId, req.modelId, plannerApiKey, req.prompt, {
-      canvasWidth: attachment?.width ?? previousPlan?.canvasWidth ?? 1024,
-      canvasHeight: attachment?.height ?? previousPlan?.canvasHeight ?? 1024,
-      previousPlan,
-      attachedImage: attachment?.image
-    })
+    const plan: LayerPlan = await planLayers(
+      req.providerId,
+      req.modelId,
+      plannerApiKey,
+      req.prompt,
+      {
+        canvasWidth: attachment?.width ?? previousPlan?.canvasWidth ?? 1024,
+        canvasHeight: attachment?.height ?? previousPlan?.canvasHeight ?? 1024,
+        previousPlan,
+        attachedImage: attachment?.image
+      },
+      (attempt, maxRetries, delayMs, error) =>
+        progress(
+          'planning',
+          `${error.message} Retrying in ${Math.round(delayMs / 1000)}s… (attempt ${attempt}/${maxRetries})`,
+          15
+        )
+    )
 
     const target =
       req.providerId === 'anthropic'
@@ -148,14 +160,16 @@ export async function runGenerationJob(jobId: string, chatId: string, req: Gener
     const layersToGenerateCount = plan.layers.filter((l) => l.changed !== false).length
     progress('generating-layer', `Generating ${layersToGenerateCount} layer image(s)…`, 40)
 
-    const generated = await generateChangedLayers(
-      plan,
-      target.providerId,
-      target.modelId,
-      imageApiKey,
-      (name) => progress('generated-layer', `Generated "${name}"`, 55, name),
-      attachment?.image
-    )
+    const generated = await generateChangedLayers(plan, target.providerId, target.modelId, imageApiKey, {
+      onLayerDone: (name) => progress('generated-layer', `Generated "${name}"`, 55, name),
+      referenceImage: attachment?.image,
+      onRetry: (attempt, maxRetries, delayMs, error) =>
+        progress(
+          'generating-layer',
+          `${error.message} Retrying in ${Math.round(delayMs / 1000)}s… (attempt ${attempt}/${maxRetries})`,
+          40
+        )
+    })
 
     const assetDir = chatStore.chatAssetDir(chatId)
     await fs.mkdir(assetDir, { recursive: true })

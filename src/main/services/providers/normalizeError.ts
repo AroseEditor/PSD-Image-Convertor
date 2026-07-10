@@ -15,13 +15,34 @@ const MESSAGES: Record<NormalizedError['code'], string> = {
 function build(
   providerId: ProviderId,
   code: NormalizedError['code'],
-  retryable: boolean
+  retryable: boolean,
+  retryAfterMs?: number
 ): NormalizedError {
-  return { code, message: MESSAGES[code], retryable, providerId }
+  return { code, message: MESSAGES[code], retryable, providerId, retryAfterMs }
 }
 
 export function missingApiKeyError(providerId: ProviderId): NormalizedError {
   return build(providerId, 'missing_api_key', false)
+}
+
+/**
+ * Logs the raw, unsanitized error (full message/stack/response body) to the main-process
+ * console before it gets normalized into a clean UI message — this is the only place that
+ * detail survives, so check the terminal running `npm run dev` (or the packaged app's log)
+ * here, not the renderer DevTools Network tab, which never sees main-process API calls.
+ */
+export function logProviderError(providerId: ProviderId, operation: string, error: unknown): void {
+  console.error(`[${providerId}] ${operation} failed:`, error)
+}
+
+function parseGoogleRetryDelayMs(googleError: GoogleApiErrorBody | undefined): number | undefined {
+  const retryInfo = googleError?.details?.find(
+    (d) => typeof d['@type'] === 'string' && d['@type'].includes('RetryInfo')
+  )
+  const retryDelay = retryInfo?.retryDelay
+  if (typeof retryDelay !== 'string') return undefined
+  const match = /^(\d+(?:\.\d+)?)s$/.exec(retryDelay)
+  return match ? Math.ceil(parseFloat(match[1]) * 1000) : undefined
 }
 
 export function normalizeGeminiError(providerId: ProviderId, error: unknown): NormalizedError {
@@ -38,7 +59,7 @@ export function normalizeGeminiError(providerId: ProviderId, error: unknown): No
     return build(providerId, 'model_access_denied', false)
   }
   if (googleStatus === 'RESOURCE_EXHAUSTED' || status === 429 || statusText === 'RESOURCE_EXHAUSTED') {
-    return build(providerId, 'rate_limited', true)
+    return build(providerId, 'rate_limited', true, parseGoogleRetryDelayMs(googleError))
   }
   if (typeof status === 'number' && status >= 500) {
     return build(providerId, 'server_error', true)
@@ -51,6 +72,8 @@ export function normalizeGeminiError(providerId: ProviderId, error: unknown): No
 
 interface GoogleApiErrorDetail {
   reason?: string
+  '@type'?: string
+  retryDelay?: string
 }
 
 interface GoogleApiErrorBody {

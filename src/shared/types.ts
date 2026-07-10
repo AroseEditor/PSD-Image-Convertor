@@ -85,6 +85,8 @@ export interface NormalizedError {
   message: string
   retryable: boolean
   providerId: ProviderId
+  /** Provider-suggested backoff before retrying, when available (e.g. Gemini's RetryInfo). */
+  retryAfterMs?: number
 }
 
 export interface GenerationErrorEvent {

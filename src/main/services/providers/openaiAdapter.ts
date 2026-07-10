@@ -1,7 +1,7 @@
 import OpenAI, { toFile } from 'openai'
 import type { AttachedImage, LayerPlan, ProviderId } from '@shared/types'
 import { layerPlanSchema } from '@shared/layerPlanSchema'
-import { normalizeOpenAiError } from './normalizeError'
+import { normalizeOpenAiError, logProviderError } from './normalizeError'
 import { isMockMode, mockLayerColor, mockLayerPlan, mockPngBuffer, mockTitle } from './mock'
 import {
   LAYER_PLANNER_SYSTEM_PROMPT,
@@ -96,8 +96,10 @@ export async function generateImage(
     return { pngBuffer: Buffer.from(result, 'base64') }
   } catch (error) {
     if (error instanceof Error && error.message === 'openai_no_image_returned') {
+      logProviderError(providerId, 'generateImage', error)
       throw normalizeOpenAiError(providerId, { status: 500 })
     }
+    logProviderError(providerId, 'generateImage', error)
     throw normalizeOpenAiError(providerId, error)
   }
 }
@@ -146,8 +148,10 @@ export async function planLayers(
     return layerPlanSchema.parse(JSON.parse(text))
   } catch (error) {
     if (error instanceof Error && error.message === 'openai_no_plan_returned') {
+      logProviderError(providerId, 'planLayers', error)
       throw normalizeOpenAiError(providerId, { status: 500 })
     }
+    logProviderError(providerId, 'planLayers', error)
     throw normalizeOpenAiError(providerId, error)
   }
 }
@@ -164,7 +168,8 @@ export async function generateChatTitle(rawPrompt: string, apiKey: string): Prom
       ]
     })
     return completion.choices[0]?.message?.content?.trim() || null
-  } catch {
+  } catch (error) {
+    logProviderError(providerId, 'generateChatTitle', error)
     return null
   }
 }

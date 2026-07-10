@@ -135,20 +135,23 @@ Set `PSD_GEN_MOCK_PROVIDERS=1` when launching the app (`dev` or the built binary
 
 ## Releases & CI
 
-Pushing a version tag builds and drafts a release automatically:
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builds the NSIS installer and drafts a GitHub Release automatically — no manual steps required to get a build out. It runs on:
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+- **Every push to `main`** — builds and updates a single rolling **`dev-latest`** draft release in place (marked as a pre-release), so pushing again overwrites the previous dev build instead of piling up new drafts.
+- **Pushing a version tag** — builds and drafts a proper versioned release for that tag:
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+- **Manual dispatch** from the Actions tab, with a tag you supply.
 
-This runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which:
+Every run does the same thing:
 
 1. Installs dependencies and type-checks the project on `windows-latest`.
 2. Builds the app and packages it into an NSIS `setup.exe` via `electron-builder`.
-3. Opens a **draft** GitHub Release for the tag, with GitHub's auto-generated "What's changed" notes (every merged PR / commit since the previous tag) and the installer attached.
+3. Creates or updates a **draft** GitHub Release with GitHub's auto-generated "What's changed" notes (every merged PR / commit since the previous release) and the installer attached.
 
-Nothing goes live automatically — a maintainer reviews the draft on the repo's Releases page and clicks **Publish** when it's ready. You can also trigger a build manually from the Actions tab (`workflow_dispatch`) without pushing a tag.
+Nothing goes live automatically — a maintainer reviews the draft on the repo's Releases page and clicks **Publish** when it's ready. Because every push to `main` triggers a full installer build (a few minutes), expect that turnaround on each commit rather than an instant check.
 
 ## Known limitations
 

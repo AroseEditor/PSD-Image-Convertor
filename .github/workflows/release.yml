@@ -2,15 +2,20 @@ name: Release
 
 # Builds the Windows NSIS installer and publishes it as a draft GitHub Release.
 #
-# Trigger it either by:
-#   - pushing a tag like "v1.2.0" (git tag v1.2.0 && git push origin v1.2.0), or
-#   - running this workflow manually from the Actions tab and supplying a tag.
+# Runs automatically on:
+#   - every push to main — builds and updates a single rolling "dev-latest"
+#     draft release (each push overwrites it in place, so drafts don't pile up)
+#   - pushing a version tag like "v1.2.0" — builds and drafts a proper
+#     versioned release for that tag
+#   - manual dispatch from the Actions tab, with a tag you supply
 #
-# The release is created as a DRAFT — nothing goes public until a maintainer
+# The release is always a DRAFT — nothing goes public until a maintainer
 # reviews it on the Releases page and clicks "Publish release".
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -52,16 +57,27 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "title=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            echo "name=$tag" >> "$GITHUB_OUTPUT"
+            echo "title=$tag" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else
-            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            sha="${GITHUB_SHA:0:7}"
+            echo "name=dev-latest" >> "$GITHUB_OUTPUT"
+            echo "title=Development build ($sha)" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create draft release
+      - name: Create/update draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
-          name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.title }}
           draft: true
+          prerelease: ${{ steps.tag.outputs.prerelease }}
           generate_release_notes: true
           files: |
             dist/*.exe

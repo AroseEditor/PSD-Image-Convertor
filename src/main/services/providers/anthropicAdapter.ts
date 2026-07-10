@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LayerPlan, ProviderId } from '@shared/types'
 import { layerPlanSchema } from '@shared/layerPlanSchema'
-import { normalizeAnthropicError } from './normalizeError'
+import { normalizeAnthropicError, logProviderError } from './normalizeError'
 import { isMockMode, mockLayerPlan, mockTitle } from './mock'
 import {
   LAYER_PLANNER_SYSTEM_PROMPT,
@@ -63,8 +63,10 @@ export async function planLayers(
     return layerPlanSchema.parse(toolUse.input)
   } catch (error) {
     if (error instanceof Error && error.message === 'anthropic_no_plan_returned') {
+      logProviderError(providerId, 'planLayers', error)
       throw normalizeAnthropicError(providerId, { status: 500 })
     }
+    logProviderError(providerId, 'planLayers', error)
     throw normalizeAnthropicError(providerId, error)
   }
 }
@@ -81,7 +83,8 @@ export async function generateChatTitle(rawPrompt: string, apiKey: string): Prom
     })
     const textBlock = message.content.find((block) => block.type === 'text')
     return textBlock && textBlock.type === 'text' ? textBlock.text.trim() : null
-  } catch {
+  } catch (error) {
+    logProviderError(providerId, 'generateChatTitle', error)
     return null
   }
 }

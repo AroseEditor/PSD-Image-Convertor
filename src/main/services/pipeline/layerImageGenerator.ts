@@ -5,6 +5,7 @@ import { supportsNativeTransparency } from '../modelCatalog/modelCatalog'
 import { mapWithConcurrency } from './concurrency'
 import { chromaKeyGreenToAlpha } from './chromaKey'
 import { buildLayerImagePrompt } from './prompts'
+import { withRetry, type OnRetry } from './retry'
 
 export interface GeneratedLayer {
   name: string
@@ -14,6 +15,12 @@ export interface GeneratedLayer {
   usedChromaKeyFallback: boolean
 }
 
+export interface GenerateChangedLayersOptions {
+  onLayerDone?: (name: string) => void
+  referenceImage?: AttachedImage
+  onRetry?: OnRetry
+}
+
 const CONCURRENCY = 3
 
 export async function generateChangedLayers(
@@ -21,23 +28,25 @@ export async function generateChangedLayers(
   targetProviderId: 'gemini' | 'openai',
   targetModelId: string,
   apiKey: string,
-  onLayerDone?: (name: string) => void,
-  referenceImage?: AttachedImage
+  opts: GenerateChangedLayersOptions = {}
 ): Promise<GeneratedLayer[]> {
   const transparentBackground = supportsNativeTransparency(targetModelId)
   const layersToGenerate = plan.layers.filter((l) => l.changed !== false)
 
   return mapWithConcurrency(layersToGenerate, CONCURRENCY, async (layer) => {
-    const prompt = buildLayerImagePrompt(layer, plan.enhancedPrompt, transparentBackground, !!referenceImage)
+    const prompt = buildLayerImagePrompt(layer, plan.enhancedPrompt, transparentBackground, !!opts.referenceImage)
 
-    const { pngBuffer } =
-      targetProviderId === 'gemini'
-        ? await geminiAdapter.generateImage(prompt, targetModelId, apiKey, referenceImage)
-        : await openaiAdapter.generateImage(prompt, targetModelId, apiKey, transparentBackground, referenceImage)
+    const { pngBuffer } = await withRetry(
+      () =>
+        targetProviderId === 'gemini'
+          ? geminiAdapter.generateImage(prompt, targetModelId, apiKey, opts.referenceImage)
+          : openaiAdapter.generateImage(prompt, targetModelId, apiKey, transparentBackground, opts.referenceImage),
+      { onRetry: opts.onRetry }
+    )
 
     const finalBuffer = transparentBackground ? pngBuffer : await chromaKeyGreenToAlpha(pngBuffer)
 
-    onLayerDone?.(layer.name)
+    opts.onLayerDone?.(layer.name)
 
     return {
       name: layer.name,

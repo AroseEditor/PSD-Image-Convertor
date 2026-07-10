@@ -3,6 +3,7 @@ import type { PlannerContext } from './prompts'
 import * as geminiAdapter from '../providers/geminiAdapter'
 import * as openaiAdapter from '../providers/openaiAdapter'
 import * as anthropicAdapter from '../providers/anthropicAdapter'
+import { withRetry, type OnRetry } from './retry'
 
 /**
  * Produces the same LayerPlan shape regardless of which provider did the planning —
@@ -13,13 +14,19 @@ export async function planLayers(
   modelId: string,
   apiKey: string,
   rawPrompt: string,
-  ctx: PlannerContext
+  ctx: PlannerContext,
+  onRetry?: OnRetry
 ): Promise<LayerPlan> {
-  if (providerId === 'anthropic') {
-    return anthropicAdapter.planLayers(rawPrompt, apiKey, modelId, ctx)
-  }
-  if (providerId === 'gemini') {
-    return geminiAdapter.planLayers(rawPrompt, apiKey, modelId, ctx)
-  }
-  return openaiAdapter.planLayers(rawPrompt, apiKey, ctx)
+  return withRetry(
+    () => {
+      if (providerId === 'anthropic') {
+        return anthropicAdapter.planLayers(rawPrompt, apiKey, modelId, ctx)
+      }
+      if (providerId === 'gemini') {
+        return geminiAdapter.planLayers(rawPrompt, apiKey, modelId, ctx)
+      }
+      return openaiAdapter.planLayers(rawPrompt, apiKey, ctx)
+    },
+    { onRetry }
+  )
 }
